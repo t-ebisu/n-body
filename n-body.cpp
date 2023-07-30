@@ -165,7 +165,7 @@ void leap_frog(double (*x)[3], double (*a)[3], double (*v)[3], double *m, double
 }
 
 
-
+//begin io functions
 void dump_file(double (*x)[3], double (*v)[3], const int n, const int nstep, double error){
   string fname = "snapshot_" + to_string(nstep) + "-nstep.log";
   cout << "dump " << fname << endl;
@@ -186,25 +186,46 @@ void dump_file(double (*x)[3], double (*v)[3], const int n, const int nstep, dou
 }
 
 
-/*
-double calc_W(double m[], double x[][3], double eps2, int n){
-  double W = 0.0;
-  double r2;
-  double rx, ry, rz;
-  int i,j;
+void read_file(string filename, double (*x)[3], double (*v)[3], double (*m), int *n, int *nstep, double *error){
+  ifstream ifs(filename);
+  string line, data;
+
+  getline(ifs, line);
+  *n = stoi(line);
+
+  getline(ifs, line);
+  *nstep = stoi(line);
   
-  for(i=0; i<n-1; i++){
-    for(j=i+1; j<n; j++){
-      rx = (x[j][0]-x[i][0]);
-      ry = (x[j][1]-x[i][1]);
-      rz = (x[j][2]-x[i][2]);
-      r2 = rx*rx + ry*ry + rz*rz;
-      W -= m[i]*m[j]/sqrt(r2+eps2);
+  getline(ifs, line);
+  *error = stod(line);
+  
+  int itr = 0;
+  while(getline(ifs, line)){  
+    istringstream stream(line);
+    /*while(getline(stream, data, ',')){
+      //hogehoge
+    }*/
+
+    for(int i=0; i<3; i++){
+      getline(stream, data, ',');
+      x[itr][i] = stod(data);
     }
+    
+    for(int i=0; i<3; i++){
+      getline(stream, data, ',');
+      v[itr][i] = stod(data);
+    }
+
+    getline(stream, data, ',');
+    m[itr] = stod(data);
+
+    itr++;
+    // if over max_n or n ; break;
+
   }
-  return W;
+  
 }
-*/
+// end io functions
 
 
 //Initialize information of the particles
