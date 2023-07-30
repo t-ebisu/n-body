@@ -267,6 +267,7 @@ int  main(){
 
   srand48(1);
   init(x, v, m, a, p, r_vir, eps2, n);
+  //read_file(filename, x, v, m, &n, &nstep, &e_0);
 
   double nowtime = 0.0;
   getTime(&nowtime);
