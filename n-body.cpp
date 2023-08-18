@@ -78,34 +78,6 @@ double calc_E(pParticle particle, int n){
 
 
 //Calculate gravity
-void calc_grav(double (*x)[3], double *m, double (*a)[3], double *p, double eps2, int n){
-  for(int i=0; i<n; i++){
-    for(int j=0; j<3; j++) a[i][j] = 0.0;
-    p[i] = 0.0;
-  }
-  
-  for(int i=0; i<n-1; i++){
-    for(int j=i+1; j<n; j++){
-      double r[3];
-      for(int k=0; k<3; k++) r[k] = (x[j][k] - x[i][k]);
-      
-      double r2 = eps2;
-      for(int k=0; k<3; k++) r2 += r[k]*r[k];
-      
-      double rinv = 1.0 / sqrt(r2);
-      double r3inv = rinv * rinv * rinv;
-      
-      for(int k=0; k<3; k++){ 
-        a[i][k] += G*m[j]*r[k]*r3inv;
-        a[j][k] -= G*m[i]*r[k]*r3inv;
-      }
-
-      p[i] += G*m[i]*m[j]*rinv;
-      p[j] += G*m[i]*m[j]*rinv;
-    }
-  }
-}
-//Calculate gravity
 void calc_grav(pParticle particle, double eps2, int n){
   for(int i=0; i<n; i++){
     for(int j=0; j<3; j++) particle[i].acc[j] = 0.0;
@@ -134,58 +106,56 @@ void calc_grav(pParticle particle, double eps2, int n){
   }
 }
 
-/*
+
 void runge_kutta4(pParticle particle, double eps2, double dt, int n){
-  //double xtmp[n][3];
-  pParticle particle_tmp = particle;
+  double xtmp[n][3];
   double k1[n][3], k2[n][3], k3[n][3], k4[n][3];
   double l1[n][3], l2[n][3], l3[n][3], l4[n][3];
-
-  //for(int i=0; i<n; i++) {for(int j=0; j<3; j++) particle[i].pos_tmp[j] = particle[i].pos[j];}
 
   for(int i=0; i<n; i++){
     for(int j=0; j<3; j++){
       k1[i][j] = dt * particle[i].vel[j];
       l1[i][j] = dt * particle[i].acc[j];
-      particle[i].pos_tmp[j] = particle[i].pos[j] + k1[i][j]*0.5;
+      xtmp[i][j] = particle[i].pos[j];
+      particle[i].pos[j] = particle[i].pos[j] + k1[i][j]*0.5;
     }
   }
 
-  calc_grav(xtmp, m, a, p, eps2, n);
+  calc_grav(particle, eps2, n);
   for(int i=0; i<n; i++){
     for(int j=0; j<3; j++){
-      k2[i][j] = dt * (v[i][j] + l1[i][j]*0.5);
-      l2[i][j] = dt * a[i][j];
-      xtmp[i][j] = x[i][j] + k2[i][j]*0.5;
+      k2[i][j] = dt * (particle[i].vel[j] + l1[i][j]*0.5);
+      l2[i][j] = dt * particle[i].acc[j];
+      particle[i].pos[j] = xtmp[i][j] + k2[i][j]*0.5;
     }
   }
 
-  calc_grav(xtmp, m, a, p, eps2, n);
+  calc_grav(particle, eps2, n);
   for(int i=0; i<n; i++){
     for(int j=0; j<3; j++){
-      k3[i][j] = dt * (v[i][j] + l2[i][j]*0.5);
-      l3[i][j] = dt * a[i][j];
-      xtmp[i][j] = x[i][j] + k3[i][j];
+      k3[i][j] = dt * (particle[i].vel[j] + l2[i][j]*0.5);
+      l3[i][j] = dt * particle[i].acc[j];
+      particle[i].pos[j] = xtmp[i][j] + k3[i][j];
     }
   }
 
-  calc_grav(xtmp, m, a, p, eps2, n);
+  calc_grav(particle, eps2, n);
   for(int i=0; i<n; i++){
     for(int j=0; j<3; j++){
-      k4[i][j] = dt * (v[i][j] + l3[i][j]);
-      l4[i][j] = dt * a[i][j];
+      k4[i][j] = dt * (particle[i].vel[j] + l3[i][j]);
+      l4[i][j] = dt * particle[i].acc[j];
     }
   }
 
   for(int i=0; i<n; i++){
     for(int j=0; j<3; j++){
-      x[i][j] += (k1[i][j] + 2.0*k2[i][j] + 2.0*k3[i][j] + k4[i][j])/6.0;
-      v[i][j] += (l1[i][j] + 2.0*l2[i][j] + 2.0*l3[i][j] + l4[i][j])/6.0;
+      particle[i].pos[j] += (k1[i][j] + 2.0*k2[i][j] + 2.0*k3[i][j] + k4[i][j])/6.0;
+      particle[i].vel[j] += (l1[i][j] + 2.0*l2[i][j] + 2.0*l3[i][j] + l4[i][j])/6.0;
     }
   }
 
-  calc_grav(x, m, a, p, eps2, n);
-}*/
+  calc_grav(particle, eps2, n);
+}
 
 
 void leap_frog(pParticle particle, double eps2, double dt, int n){
