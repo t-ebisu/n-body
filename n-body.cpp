@@ -26,7 +26,6 @@ typedef struct Particle{
   double pot;
   double mass;
   //long long id;
-  double pos_tmp[3]; //for runge_kutta
 }Particle, *pParticle;
 
 
@@ -117,7 +116,7 @@ void runge_kutta4(pParticle particle, double eps2, double dt, int n){
       k1[i][j] = dt * particle[i].vel[j];
       l1[i][j] = dt * particle[i].acc[j];
       xtmp[i][j] = particle[i].pos[j];
-      particle[i].pos[j] = particle[i].pos[j] + k1[i][j]*0.5;
+      particle[i].pos[j] = xtmp[i][j] + k1[i][j]*0.5;
     }
   }
 
@@ -144,6 +143,7 @@ void runge_kutta4(pParticle particle, double eps2, double dt, int n){
     for(int j=0; j<3; j++){
       k4[i][j] = dt * (particle[i].vel[j] + l3[i][j]);
       l4[i][j] = dt * particle[i].acc[j];
+      particle[i].pos[j] = xtmp[i][j];
     }
   }
 
@@ -215,9 +215,6 @@ void read_file(string filename, pParticle particle, int *n, int *nstep, double *
   int itr = 0;
   while(getline(ifs, line)){  
     istringstream stream(line);
-    /*while(getline(stream, data, ',')){
-      //hogehoge
-    }*/
 
     for(int i=0; i<3; i++){
       getline(stream, data, ',');
@@ -234,6 +231,7 @@ void read_file(string filename, pParticle particle, int *n, int *nstep, double *
 
     itr++;
     // if over max_n or n ; break;
+    if(itr >= max_n) break;
 
   }
   
@@ -256,43 +254,41 @@ void init(pParticle particle, double r_vir, double eps2, const int n){
 }
 
 
+
 int  main(){
 
   int n;
   int nstep = 0;
   double tnow = 0, dt, tend;
   double eps2 = eps * eps;
-  ///
-  double x[max_n][3];
-  double v[max_n][3];
-  double a[max_n][3];
-  double p[max_n];
-  double m[max_n];
-  ///
   pParticle particle = new Particle[max_n];
-  ///
   double e_0, e_end;
   double r_vir;
-
-  n = 20; //number of particles
+  
+  //set default params
+  n = 128; //number of particles
   dt = pow(2,-5);
   tend = 1.0;
   r_vir = 0.5; //virial radius
   //string filename = "hogehoge.csv";
 
+  //cin << filename;
+  //or
+  //cin << n << dt << tend << r_vir; 
+
   srand48(1);
   init(particle, r_vir, eps2, n);
   //read_file(filename, particle, &n, &nstep, &e_0);
-  //cout << particle[0].mass << "\t" << particle[0].pos[0] << endl;
-
+  
   double nowtime = 0.0;
   getTime(&nowtime);
 
   e_0 = calc_E(particle, n);
   
   while(tnow < tend){
-    //runge_kutta4(x, a, v, m, p, eps2, dt, n);
-    leap_frog(particle, eps2, dt, n);
+    //select runge_kutta or leap_frog
+    runge_kutta4(particle, eps2, dt, n);
+    //leap_frog(particle, eps2, dt, n);
 
     tnow += dt;
     nstep++;
