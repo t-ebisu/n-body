@@ -19,6 +19,17 @@ static int max_n = 16384;
 static int max_nstep = 100000;
 
 
+typedef struct Particle{
+  double pos[3];
+  double vel[3];
+  double acc[3];
+  double pot;
+  double mass;
+  //long long id;
+}Particle, *pParticle;
+
+
+
 // Gaussian with mean = 0.0 and dispersion = 1.0 by Box-Muller method 
 double gaussian(void){
   double x, y, z, r2;
@@ -32,10 +43,9 @@ double gaussian(void){
 }
 
 
-//Calculate velocity dispersion
-double calc_vrms(double r_vir, double *p, int n){
+double calc_vrms(double r_vir, pParticle particle, int n){
   double w = 0.0;
-  for(int i=0; i<n; i++) w += p[i]; 
+  for(int i=0; i<n; i++) w += particle[i].pot; 
   return sqrt((r_vir*w)/(3*Mass));
 }
 
@@ -53,11 +63,11 @@ void pos(double x[3]){
 
 
 //Calculate total enargy
-double calc_E(double (*x)[3], double (*v)[3], double *m, double *p, int n){
+double calc_E(pParticle particle, int n){
   double k = 0.0, w = 0.0;
   for(int i=0; i<n; i++){
-    for(int j=0; j<3; j++) k += m[i] * v[i][j] * v[i][j];
-    w -= p[i];
+    for(int j=0; j<3; j++) k += particle[i].mass * particle[i].vel[j] * particle[i].vel[j];
+    w -= particle[i].pot;
   }
 
   cout << "k:" << k/2 << ", w:" << w/2 << endl;
@@ -67,16 +77,16 @@ double calc_E(double (*x)[3], double (*v)[3], double *m, double *p, int n){
 
 
 //Calculate gravity
-void calc_grav(double (*x)[3], double *m, double (*a)[3], double *p, double eps2, int n){
+void calc_grav(pParticle particle, double eps2, int n){
   for(int i=0; i<n; i++){
-    for(int j=0; j<3; j++) a[i][j] = 0.0;
-    p[i] = 0.0;
+    for(int j=0; j<3; j++) particle[i].acc[j] = 0.0;
+    particle[i].pot = 0.0;
   }
   
   for(int i=0; i<n-1; i++){
     for(int j=i+1; j<n; j++){
       double r[3];
-      for(int k=0; k<3; k++) r[k] = (x[j][k] - x[i][k]);
+      for(int k=0; k<3; k++) r[k] = (particle[j].pos[k] - particle[i].pos[k]);
       
       double r2 = eps2;
       for(int k=0; k<3; k++) r2 += r[k]*r[k];
@@ -85,109 +95,111 @@ void calc_grav(double (*x)[3], double *m, double (*a)[3], double *p, double eps2
       double r3inv = rinv * rinv * rinv;
       
       for(int k=0; k<3; k++){ 
-        a[i][k] += G*m[j]*r[k]*r3inv;
-        a[j][k] -= G*m[i]*r[k]*r3inv;
+        particle[i].acc[k] += G*particle[j].mass*r[k]*r3inv;
+        particle[j].acc[k] -= G*particle[i].mass*r[k]*r3inv;
       }
 
-      p[i] += G*m[i]*m[j]*rinv;
-      p[j] += G*m[i]*m[j]*rinv;
+      particle[i].pot += G*particle[i].mass*particle[j].mass*rinv;
+      particle[j].pot += G*particle[i].mass*particle[j].mass*rinv;
     }
   }
 }
 
 
-void runge_kutta4(double (*x)[3], double (*a)[3], double (*v)[3], double *m, double *p, double eps2, double dt, int n){
+void runge_kutta4(pParticle particle, double eps2, double dt, int n){
   double xtmp[n][3];
   double k1[n][3], k2[n][3], k3[n][3], k4[n][3];
   double l1[n][3], l2[n][3], l3[n][3], l4[n][3];
 
   for(int i=0; i<n; i++){
     for(int j=0; j<3; j++){
-      k1[i][j] = dt * v[i][j];
-      l1[i][j] = dt * a[i][j];
-      xtmp[i][j] = x[i][j] + k1[i][j]*0.5;
+      k1[i][j] = dt * particle[i].vel[j];
+      l1[i][j] = dt * particle[i].acc[j];
+      xtmp[i][j] = particle[i].pos[j];
+      particle[i].pos[j] = xtmp[i][j] + k1[i][j]*0.5;
     }
   }
 
-  calc_grav(xtmp, m, a, p, eps2, n);
+  calc_grav(particle, eps2, n);
   for(int i=0; i<n; i++){
     for(int j=0; j<3; j++){
-      k2[i][j] = dt * (v[i][j] + l1[i][j]*0.5);
-      l2[i][j] = dt * a[i][j];
-      xtmp[i][j] = x[i][j] + k2[i][j]*0.5;
+      k2[i][j] = dt * (particle[i].vel[j] + l1[i][j]*0.5);
+      l2[i][j] = dt * particle[i].acc[j];
+      particle[i].pos[j] = xtmp[i][j] + k2[i][j]*0.5;
     }
   }
 
-  calc_grav(xtmp, m, a, p, eps2, n);
+  calc_grav(particle, eps2, n);
   for(int i=0; i<n; i++){
     for(int j=0; j<3; j++){
-      k3[i][j] = dt * (v[i][j] + l2[i][j]*0.5);
-      l3[i][j] = dt * a[i][j];
-      xtmp[i][j] = x[i][j] + k3[i][j];
+      k3[i][j] = dt * (particle[i].vel[j] + l2[i][j]*0.5);
+      l3[i][j] = dt * particle[i].acc[j];
+      particle[i].pos[j] = xtmp[i][j] + k3[i][j];
     }
   }
 
-  calc_grav(xtmp, m, a, p, eps2, n);
+  calc_grav(particle, eps2, n);
   for(int i=0; i<n; i++){
     for(int j=0; j<3; j++){
-      k4[i][j] = dt * (v[i][j] + l3[i][j]);
-      l4[i][j] = dt * a[i][j];
+      k4[i][j] = dt * (particle[i].vel[j] + l3[i][j]);
+      l4[i][j] = dt * particle[i].acc[j];
+      particle[i].pos[j] = xtmp[i][j];
     }
   }
 
   for(int i=0; i<n; i++){
     for(int j=0; j<3; j++){
-      x[i][j] += (k1[i][j] + 2.0*k2[i][j] + 2.0*k3[i][j] + k4[i][j])/6.0;
-      v[i][j] += (l1[i][j] + 2.0*l2[i][j] + 2.0*l3[i][j] + l4[i][j])/6.0;
+      particle[i].pos[j] += (k1[i][j] + 2.0*k2[i][j] + 2.0*k3[i][j] + k4[i][j])/6.0;
+      particle[i].vel[j] += (l1[i][j] + 2.0*l2[i][j] + 2.0*l3[i][j] + l4[i][j])/6.0;
     }
   }
 
-  calc_grav(x, m, a, p, eps2, n);
+  calc_grav(particle, eps2, n);
 }
 
 
-void leap_frog(double (*x)[3], double (*a)[3], double (*v)[3], double *m, double *p, double eps2, double dt, int n){
+void leap_frog(pParticle particle, double eps2, double dt, int n){
   double v_h[n][3];
 
   for(int i=0; i<n; i++){
     for(int j=0; j<3; j++){
-      v_h[i][j] = v[i][j] + 0.5 * a[i][j] * dt;
-      x[i][j] = x[i][j] + v_h[i][j] * dt;
+      v_h[i][j] = particle[i].vel[j] + 0.5 * particle[i].acc[j] * dt;
+      particle[i].pos[j] = particle[i].pos[j] + v_h[i][j] * dt;
     }
   }
 
-  calc_grav(x, m, a, p, eps2, n);
+  calc_grav(particle, eps2, n);
 
   for(int i=0; i<n; i++){
     for(int j=0; j<3; j++){
-      v[i][j] = v_h[i][j] + 0.5 * a[i][j] * dt;
+      particle[i].vel[j] = v_h[i][j] + 0.5 * particle[i].acc[j] * dt;
     }
   }
 }
 
 
 //begin io functions
-void dump_file(double (*x)[3], double (*v)[3], const int n, const int nstep, double error){
-  string fname = "snapshot_" + to_string(nstep) + "-nstep.log";
-  cout << "dump " << fname << endl;
+void dump_file(pParticle particle, int n,int nstep, double error){
+  string filename = "snapshot_" + to_string(nstep) + "-nstep.log";
+  std::cout << "dump " << filename << endl;
   
-  ofstream ofs(fname);
+  ofstream ofs(filename);
   ofs << n << endl;
   ofs << nstep << endl;
   ofs << error << endl;
   for(int i=0; i<n; i++){
     ofs << setprecision(15)
      << setiosflags(ios::scientific)
-     << x[i][0] << "," << x[i][1] << "," << x[i][2] << ","
-     << v[i][0] << "," << v[i][1] << "," << v[i][2] << ","
-	   << endl;
+     << particle[i].pos[0] << "," << particle[i].pos[1] << "," << particle[i].pos[2] << ","
+     << particle[i].vel[0] << "," << particle[i].vel[1] << "," << particle[i].vel[2] << ","
+	   << particle[i].mass << endl;
   }
 
   ofs.close();
 }
 
 
-void read_file(string filename, double (*x)[3], double (*v)[3], double (*m), int *n, int *nstep, double *error){
+void read_file(string filename, pParticle particle, int *n, int *nstep, double *error){
   ifstream ifs(filename);
   string line, data;
 
@@ -203,25 +215,23 @@ void read_file(string filename, double (*x)[3], double (*v)[3], double (*m), int
   int itr = 0;
   while(getline(ifs, line)){  
     istringstream stream(line);
-    /*while(getline(stream, data, ',')){
-      //hogehoge
-    }*/
 
     for(int i=0; i<3; i++){
       getline(stream, data, ',');
-      x[itr][i] = stod(data);
+      particle[itr].pos[i] = stod(data);
     }
     
     for(int i=0; i<3; i++){
       getline(stream, data, ',');
-      v[itr][i] = stod(data);
+      particle[itr].vel[i] = stod(data);
     }
 
     getline(stream, data, ',');
-    m[itr] = stod(data);
+    particle[itr].mass = stod(data);
 
     itr++;
     // if over max_n or n ; break;
+    if(itr >= max_n) break;
 
   }
   
@@ -229,18 +239,17 @@ void read_file(string filename, double (*x)[3], double (*v)[3], double (*m), int
 // end io functions
 
 
-//Initialize information of the particles
-void init( double (*x)[3], double (*v)[3], double *m, double (*a)[3], double *p, double r_vir, double eps2, const int n){
+void init(pParticle particle, double r_vir, double eps2, const int n){
   for(int i=0; i<n; i++){
-    m[i] = Mass/n;
-    pos(x[i]);
+    particle[i].mass = Mass/n;
+    pos(particle[i].pos);
   }
 
-  calc_grav(x, m, a, p, eps2, n);
-  double vrms = calc_vrms(r_vir, p, n);
+  calc_grav(particle, eps2, n);
+  double vrms = calc_vrms(r_vir, particle, n);
   cout << "vrms:" << vrms << endl;
   for(int i=0; i<n; i++){
-    for(int j=0; j<3; j++) v[i][j] = vrms * gaussian();
+    for(int j=0; j<3; j++) particle[i].vel[j] = vrms * gaussian();
   }
 }
 
@@ -252,51 +261,52 @@ int  main(){
   int nstep = 0;
   double tnow = 0, dt, tend;
   double eps2 = eps * eps;
-  double x[max_n][3];
-  double v[max_n][3];
-  double a[max_n][3];
-  double p[max_n];
-  double m[max_n];
+  pParticle particle = new Particle[max_n];
   double e_0, e_end;
   double r_vir;
-
-  n = 20; //number of particles
+  
+  //set default params
+  n = 128; //number of particles
   dt = pow(2,-5);
   tend = 1.0;
   r_vir = 0.5; //virial radius
-  
+  //string filename = "hogehoge.csv";
+
+  //cin << filename;
+  //or
+  //cin << n << dt << tend << r_vir; 
 
   srand48(1);
-  init(x, v, m, a, p, r_vir, eps2, n);
-  //read_file(filename, x, v, m, &n, &nstep, &e_0);
-
+  init(particle, r_vir, eps2, n);
+  //read_file(filename, particle, &n, &nstep, &e_0);
+  
   double nowtime = 0.0;
   getTime(&nowtime);
 
-  e_0 = calc_E(x, v, m, p, n);
+  e_0 = calc_E(particle, n);
   
   while(tnow < tend){
-    //runge_kutta4(x, a, v, m, p, eps2, dt, n);
-    leap_frog(x, a, v, m, p, eps2, dt, n);
+    //select runge_kutta or leap_frog
+    runge_kutta4(particle, eps2, dt, n);
+    //leap_frog(particle, eps2, dt, n);
 
     tnow += dt;
     nstep++;
     
     if(nstep % 10 == 0){
-      e_end = calc_E(x, v, m, p, n);
-      dump_file(x, v, n, nstep, fabs((e_end-e_0)/e_0));
+      e_end = calc_E(particle, n);
+      dump_file(particle, n, nstep, fabs((e_end-e_0)/e_0));
     }
-
-    //for debug
-    //fprintf(stderr, "%e, %e, %e, %e, %e, %e, %e, %e, %e\n", x[0][0], x[0][1], x[0][2], v[0][0], v[0][1], v[0][2], a[0][0], a[0][1], a[0][2]);
 
   }
 
   double difftime = getTime(&nowtime);
 
-  e_end = calc_E(x, v, m, p, n);
+  e_end = calc_E(particle, n);
   cout << scientific << "Error : " << fabs((e_end-e_0)/e_0) << endl;
   cout << scientific << "time : " << difftime << endl;
+
+  delete[] particle;
 
   return 0;
 }
